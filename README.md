@@ -1,14 +1,16 @@
 ### How to run
 
-python SequenceAlignment.py *[sequence file]* *[substitution matrix]* *[gap score]* *[--verbose]*
+```
+python SequenceAlignment.py sequence_file substitution_matrix gap_penalty --verbose
+```
 
-*[sequence file]* File containing sequences. First line contains sequence 1, second line is blank, third line contains sequence 2. All other lines are ignored
+*[sequence_file]* File containing sequences. First line contains sequence 1, second line is blank, third line contains sequence 2. All other lines are ignored
 
-*[substitution matrix]* Matrix of match/mismatch values
+*[substitution_matrix]* Matrix of match/mismatch values
 
-*[gap score]* Integer
+*[gap_penalty]* Integer
 
-*[--verbose]* Prints extra information for debugging
+*[--verbose]* OPTIONAL Prints extra information for debugging
 
 # Bioinformatics Homework 2 [CSCI 4800]
 

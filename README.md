@@ -1,3 +1,15 @@
+### How to run
+
+python SequenceAlignment.py *[sequence file]* *[substitution matrix]* *[gap score]* *[--verbose]*
+
+*[sequence file]* File containing sequences. First line contains sequence 1, second line is blank, third line contains sequence 2. All other lines are ignored
+
+*[substitution matrix]* Matrix of match/mismatch values
+
+*[gap score]* Integer
+
+*[--verbose]* Prints extra information for debugging
+
 # Bioinformatics Homework 2 [CSCI 4800]
 
 You are to implement a dynamic programming algorithm for pairwise sequence alignment: 

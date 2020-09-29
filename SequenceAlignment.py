@@ -1,9 +1,14 @@
 #!/usr/bin/python
 
 import argparse
+from Bio import pairwise2
+from Bio.pairwise2 import format_alignment
+from Bio.Seq import Seq
+from Bio.SubsMat import MatrixInfo as matlist
 
 SCORE = 'score'
 DIR = 'dir'
+MATCH = 'match'
 DIAG = 'diagonal'
 LEFT = 'left'
 UP = 'up'
@@ -28,8 +33,69 @@ def match_chars(c1, c2):
     return value, match
 
 
+def traceback(i, j):
+    ts = ''  # top sequence
+    bs = ''  # bottom sequence
+    ms = ''  # match sequence (bars to show a matching value)
+
+    while j > 0 or i > 0:
+        s1_char = '-'
+        s2_char = '-'
+        if j > 0:
+            s2_char = s2[j - 1]
+        if i > 0:
+            s1_char = s1[i - 1]
+
+        if nmmatrix[i][j][DIR] == DIAG:
+            ts = s1_char + ts
+            bs = s2_char + bs
+            if nmmatrix[i][j][MATCH]:
+                ms = '|' + ms
+            else:
+                ms = ' ' + ms
+
+            i = i - 1
+            j = j - 1
+            continue
+
+        if nmmatrix[i][j][DIR] == LEFT:
+            ts = '-' + ts
+            bs = s2_char + bs
+            ms = ' ' + ms
+
+            j = j - 1
+            continue
+
+        if nmmatrix[i][j][DIR] == UP:
+            ts = s1_char + ts
+            bs = '-' + bs
+            ms = ' ' + ms
+
+            i = i - 1
+            continue
+
+    return ts, ms, bs
+
+
+def maxscore(a, b, c):
+    A = False
+    B = False
+    C = False
+
+    if a >= b and a >= c:
+        A = True
+    if b >= a and b >= c:
+        B = True
+    if c >= a and c >= b:
+        C = True
+
+    return A, B, C
+
+
 def cost(i, j):
-    print(i-1, j-1)
+    global gap
+
+    # print(i-1, j-1)
     s1_char = s1[i-1]
     s2_char = s2[j-1]
 
@@ -43,28 +109,74 @@ def cost(i, j):
     if nmmatrix[i-1][j][SCORE] is None:
         cost(i - 1, j)
 
-    # check if up has been found
+    # check if left has been found
     if nmmatrix[i][j-1][SCORE] is None:
         cost(i, j-1)
 
-    diag = nmmatrix[i - 1][j - 1] + match_chars(s1_char, s2_char)
-    smax = {'value': diag, 'dir': DIAG}
+    smax = {SCORE: None, DIR: LEFT, MATCH: None}
 
-    leftv = nmmatrix[i][j - 1] + gap
-    if leftv > smax['value']:
-        smax['value'] = leftv
-        smax['dir'] = LEFT
+    leftv = nmmatrix[i][j - 1][SCORE] + gap
+    score, match = match_chars(s1_char, s2_char)
+    diag = nmmatrix[i - 1][j - 1][SCORE] + score
+    upv = nmmatrix[i - 1][j][SCORE] + gap
 
-    upv = nmmatrix[i-1][j] + gap
-    if upv > smax['value']:
-        smax['value'] = upv
-        smax['dir'] = UP
+    A, B, C = maxscore(upv, diag, leftv)
 
-    nmmatrix[i][j][SCORE] = smax['value']
-    nmmatrix[i][j][DIR] = smax['dir']
+    # take highroad first
+    if A:
+        smax[SCORE] = upv
+        smax[DIR] = UP
+    elif B:
+        smax[SCORE] = diag
+        smax[DIR] = DIAG
+        smax[MATCH] = match
+    elif C:
+        smax[SCORE] = leftv
+        smax[DIR] = LEFT
+
+    nmmatrix[i][j][SCORE] = smax[SCORE]
+    nmmatrix[i][j][DIR] = smax[DIR]
+    nmmatrix[i][j][MATCH] = smax[MATCH]
+
+    # leftv = nmmatrix[i][j - 1][SCORE] + gap
+    # smax = {SCORE: leftv, DIR: LEFT, MATCH: None}
+    #
+    # score, match = match_chars(s1_char, s2_char)
+    # diag = nmmatrix[i - 1][j - 1][SCORE] + score
+    # if diag > smax[SCORE]:
+    #     smax[SCORE] = diag
+    #     smax[DIR] = DIAG
+    #     smax[MATCH] = match
+    #
+    # # Find the cost of putting a gap in the second sequence
+    # # do this last so that the traceback will be highroad
+    # upv = nmmatrix[i-1][j][SCORE] + gap
+    # if upv > smax[SCORE]:
+    #     smax[SCORE] = upv
+    #     smax[DIR] = UP
+    #     smax[MATCH] = None
+    #
+    # nmmatrix[i][j][SCORE] = smax[SCORE]
+    # nmmatrix[i][j][DIR] = smax[DIR]
+    # nmmatrix[i][j][MATCH] = smax[MATCH]
+
+
+def alignment_score(ts, bs):
+    global gap
+
+    score = 0
+    for i in range(0, len(ts)):
+        if ts[i] == '-' or bs[i] == '-':
+            score = score + gap
+        else:
+            match_score, _ = match_chars(ts[i], bs[i])
+            score = score + match_score
+
+    return score
 
 
 def do_align(s, m, g, v):
+    global s1, s2, gap, nmmatrix, submatrix
     print('Global alignment')  # required print
     # vprint("Sequence File: " + s, v)
     # vprint("Matrix File: " + m, v)
@@ -81,11 +193,13 @@ def do_align(s, m, g, v):
     if sfile:
         vprint('|\t' + s + " opened", v)
 
-        s1 = sfile.readline().rstrip()  # read in the first sequence on line 1
+        s1 = sfile.readline().rstrip().lower()  # read in the first sequence on line 1
         s1_n = len(s1)
         sfile.readline()  # read in the blank line on line 2
-        s2 = sfile.readline().rstrip()  # read in the second sequence on line 3
+        s2 = sfile.readline().rstrip().lower()  # read in the second sequence on line 3
         s2_n = len(s2)
+
+        print(s1)
 
         # Print the first 50 chars of both sequences
         vprint("|\t\tSequence 1 (" + str(s1_n) + "): " + s1[: 50] + "...", v)
@@ -146,7 +260,7 @@ def do_align(s, m, g, v):
 
     for li in nmmatrix:
         for i in range(0, len(s2)+1):
-            tup = {'score': None, 'dir': None}
+            tup = {'score': None, 'dir': None, 'match': None}
             li.append(tup)
 
     nmmatrix[0][0][SCORE] = 0  # Initialize the first number
@@ -168,7 +282,20 @@ def do_align(s, m, g, v):
     vprint('|\n|\tCalculating costs...', v)
 
     cost(s1_n, s2_n)
-    print(nmmatrix[s1_n+1][s2_n+1])
+
+    vprint('|\t\tBottom right:', v)
+    vprint('|\t\t\tScore ... ' + str(nmmatrix[s1_n][s2_n][SCORE]), v)
+    vprint('|\t\t\tDirection ... ' + str(nmmatrix[s1_n][s2_n][DIR]), v)
+
+    vprint('|\n|\tStarting traceback from nmmatrix[' + str(s1_n) + '][' + str(s2_n) + ']', v)
+    ts, ms, bs = traceback(s1_n, s2_n)
+
+    print(ts)
+    print(ms)
+    print(bs)
+
+    print(str(nmmatrix[s1_n][s2_n][SCORE]))
+
 
 
 if __name__ == "__main__":
@@ -186,6 +313,6 @@ if __name__ == "__main__":
 
     sequences = args.sequences
     matrix = args.matrix
-    gap = args.gpenalty
+    g = args.gpenalty
     verbose = args.verbose
-    do_align(sequences, matrix, gap, verbose)
+    do_align(sequences, matrix, g, verbose)

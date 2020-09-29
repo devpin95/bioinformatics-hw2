@@ -1,10 +1,6 @@
 #!/usr/bin/python
 
 import argparse
-from Bio import pairwise2
-from Bio.pairwise2 import format_alignment
-from Bio.Seq import Seq
-from Bio.SubsMat import MatrixInfo as matlist
 
 SCORE = 'score'
 DIR = 'dir'
@@ -199,8 +195,6 @@ def do_align(s, m, g, v):
         s2 = sfile.readline().rstrip().lower()  # read in the second sequence on line 3
         s2_n = len(s2)
 
-        print(s1)
-
         # Print the first 50 chars of both sequences
         vprint("|\t\tSequence 1 (" + str(s1_n) + "): " + s1[: 50] + "...", v)
         vprint("|\t\tSequence 2 (" + str(s2_n) + "): " + s2[: 50] + "...", v)
@@ -211,12 +205,16 @@ def do_align(s, m, g, v):
 
     vprint("|\tDetermining sequence type (DNA/Protein)...", v)
 
-    if 'm' or 'M' or 'r' or 'R' or 'w' or 'W' in s1:
+    if 'm' in s1 or 'M' in s1:
         is_protein_seq = True
 
     vprint("|\t\t-> Protein Sequence" if is_protein_seq else "|\t\t-> DNA Sequence", v)
 
-    print("Protein Sequence" if is_protein_seq else "DNA Sequence")  # required print
+    if is_protein_seq:
+        print("Protein Sequence")
+    else:
+        print("DNA Sequence")
+
     print(g)  # required print
 
     vprint("|\tReading matrix...", v)

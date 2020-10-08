@@ -109,52 +109,36 @@ def cost(i, j):
     if nmmatrix[i][j-1][SCORE] is None:
         cost(i, j-1)
 
+    # initialize a dict to keep track of the max score and direction
     smax = {SCORE: None, DIR: LEFT, MATCH: None}
 
+    # find left, diag, and up scores
     leftv = nmmatrix[i][j - 1][SCORE] + gap
     score, match = match_chars(s1_char, s2_char)
     diag = nmmatrix[i - 1][j - 1][SCORE] + score
     upv = nmmatrix[i - 1][j][SCORE] + gap
 
+    # find the max score, if more than one, we'll break the tie with the order we check them in (highroad)
     A, B, C = maxscore(upv, diag, leftv)
 
     # take highroad first
     if A:
         smax[SCORE] = upv
         smax[DIR] = UP
+    # Otherwise take the diagonal
     elif B:
         smax[SCORE] = diag
         smax[DIR] = DIAG
         smax[MATCH] = match
+    # Otherwise, take the low road
     elif C:
         smax[SCORE] = leftv
         smax[DIR] = LEFT
 
+    # set the max value and direction in the matrix
     nmmatrix[i][j][SCORE] = smax[SCORE]
     nmmatrix[i][j][DIR] = smax[DIR]
     nmmatrix[i][j][MATCH] = smax[MATCH]
-
-    # leftv = nmmatrix[i][j - 1][SCORE] + gap
-    # smax = {SCORE: leftv, DIR: LEFT, MATCH: None}
-    #
-    # score, match = match_chars(s1_char, s2_char)
-    # diag = nmmatrix[i - 1][j - 1][SCORE] + score
-    # if diag > smax[SCORE]:
-    #     smax[SCORE] = diag
-    #     smax[DIR] = DIAG
-    #     smax[MATCH] = match
-    #
-    # # Find the cost of putting a gap in the second sequence
-    # # do this last so that the traceback will be highroad
-    # upv = nmmatrix[i-1][j][SCORE] + gap
-    # if upv > smax[SCORE]:
-    #     smax[SCORE] = upv
-    #     smax[DIR] = UP
-    #     smax[MATCH] = None
-    #
-    # nmmatrix[i][j][SCORE] = smax[SCORE]
-    # nmmatrix[i][j][DIR] = smax[DIR]
-    # nmmatrix[i][j][MATCH] = smax[MATCH]
 
 
 def alignment_score(ts, bs):
@@ -174,17 +158,14 @@ def alignment_score(ts, bs):
 def do_align(s, m, g, v):
     global s1, s2, gap, nmmatrix, submatrix
     print('Global alignment')  # required print
-    # vprint("Sequence File: " + s, v)
-    # vprint("Matrix File: " + m, v)
-    # vprint("Gap Penalty: " + str(g), v)
-    # vprint("Verbose: " + str(v), v)
 
     gap = g
 
     vprint("|Preparing to do alignment...", v)
 
+    # open the sequence file
     sfile = open(s, 'r')
-    is_protein_seq = False
+    is_protein_seq = False  # flag if the sequence is protein or dna
 
     if sfile:
         vprint('|\t' + s + " opened", v)
@@ -205,11 +186,13 @@ def do_align(s, m, g, v):
 
     vprint("|\tDetermining sequence type (DNA/Protein)...", v)
 
+    # check if there is an 'm' in the sequence. If present, the sequence is a protein sequence
     if 'm' in s1 or 'M' in s1:
         is_protein_seq = True
 
     vprint("|\t\t-> Protein Sequence" if is_protein_seq else "|\t\t-> DNA Sequence", v)
 
+    # print which sequence type we are handling
     if is_protein_seq:
         print("Protein Sequence")
     else:
@@ -219,6 +202,7 @@ def do_align(s, m, g, v):
 
     vprint("|\tReading matrix...", v)
 
+    # open the substitution matrix file
     mfile = open(m, 'r')
 
     if mfile:
@@ -231,14 +215,17 @@ def do_align(s, m, g, v):
 
         vprint("|\t\t\tAlphabet (" + str(alphabet_size) + ") " + str(alphabet), v)
 
+        # set up a dict of dicts for the matrix
         for char in alphabet:
             submatrix[char.lower()] = {}
 
+        # step through the rows of the matrix
         for i in range(0, alphabet_size):
             isubvals = mfile.readline().rstrip().split()
             columnchar = isubvals[0].lower()  # remove the char from the front of the line, use it as first entry
             isubvals.pop(0)
 
+            # loop through the columns of the row and add it to the dict
             for j in range(0, len(isubvals)):
                 rowchar = alphabet[j].lower()
                 submatrix[columnchar][rowchar] = int(isubvals[j])
@@ -253,9 +240,11 @@ def do_align(s, m, g, v):
     vprint('|\n|\tCreating Needleman-Wuncsh matrix...', v)
     # vprint('|\t\t' + str(len(s1) + 1) + "x" + str(len(s2) + 1), v)
 
+    # set the number of rows in the matrix to the length of sequence one plus 1
     for i in range(0, len(s1)+1):
         nmmatrix.append([])
 
+    # loop through the rows and add len(s2)+1 columns
     for li in nmmatrix:
         for i in range(0, len(s2)+1):
             tup = {'score': None, 'dir': None, 'match': None}
@@ -267,18 +256,24 @@ def do_align(s, m, g, v):
     vprint('|\t\t' + str(len(nmmatrix)) + "x" + str(len(nmmatrix[0])), v)
 
     vprint('|\t\tInitializing row one with gap penalty...', v)
+
+    # initialize the first row with the gap penalty for going to the left
     for i in range(1, s2_n+1):
         nmmatrix[0][i][SCORE] = nmmatrix[0][i-1][SCORE] + g
         nmmatrix[0][i][DIR] = UP
+
     vprint('|\t\t\t-> ' + str(nmmatrix[0]) + '...', v)
 
     vprint('|\t\tInitializing column one with gap penalty...', v)
+
+    # initialize the first column with the gap penalty for going to the up
     for i in range(1, s1_n + 1):
         nmmatrix[i][0][SCORE] = nmmatrix[i-1][0][SCORE] + g
         nmmatrix[i][0][DIR] = LEFT
 
     vprint('|\n|\tCalculating costs...', v)
 
+    # calculate the cost of aligning the two sequences
     cost(s1_n, s2_n)
 
     vprint('|\t\tBottom right:', v)
@@ -286,14 +281,16 @@ def do_align(s, m, g, v):
     vprint('|\t\t\tDirection ... ' + str(nmmatrix[s1_n][s2_n][DIR]), v)
 
     vprint('|\n|\tStarting traceback from nmmatrix[' + str(s1_n) + '][' + str(s2_n) + ']', v)
+
+    # find the top sequences, the matches (pipes), and the bottom sequence for printing
     ts, ms, bs = traceback(s1_n, s2_n)
 
     print(ts)
     print(ms)
     print(bs)
 
+    # print the bottom right cell, this is the score of the alignment
     print(str(nmmatrix[s1_n][s2_n][SCORE]))
-
 
 
 if __name__ == "__main__":
